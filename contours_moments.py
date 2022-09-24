@@ -3,27 +3,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from skimage.measure import find_contours
 
-# # load the image HxWxC for contour overlay
-# img_matte = cv.imread('00000.png')
-# bound_th = 0.8
-# # load the image as HxW
-# im = cv.imread('00000.png', cv.CV_8UC1)
-# ret, thresh = cv.threshold(im, int(bound_th * 255), 255, 0)
-# contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-#
-# # Draw contours
-# cv.drawContours(img_matte, contours, -1, (0, 255, 0), 1)
-# print(thresh.shape)
-#
-# cv.imshow('Contours', im)
-#
-# plt.imshow(img_matte)
-# plt.show()
-#
-# cnt = contours[0]
-# M = cv.moments(cnt)
-# print(M)
-
 
 def get_contours_shifted(mask, bound_th=0.5):
     """ Returns one pixel wide edge contours of an image mask as a bit map/ndarray
@@ -115,7 +94,30 @@ def perimeter(cnts):
     return cv.arcLength(cnts, True)
 
 
-# print(f"area = {cont_area(contours[0])}\n",
-#       f"Centroids = {centroid(get_moments(contours[0]))}\n",
-#       f"Perimeter length {perimeter(contours[0])}")
-# disp_bound_box(img_matte, contours[0], rotated=True)
+if __name__ == '__main__':
+
+    # load the image HxWxC for contour overlay
+    img_matte = cv.imread('00000.png')
+    bound_th = 0.8
+    # load the image as HxW
+    im = cv.imread('00000.png', cv.CV_8UC1)
+    ret, thresh = cv.threshold(im, int(bound_th * 255), 255, 0)
+    contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+
+    # Draw contours
+    cv.drawContours(img_matte, contours, -1, (0, 255, 0), 1)
+    print(thresh.shape)
+
+    cv.imshow('Contours', im)
+
+    plt.imshow(img_matte)
+    plt.show()
+
+    cnt = contours[0]
+    M = cv.moments(cnt)
+    print(M)
+
+    print(f"area = {cont_area(contours[0])}\n",
+          f"Centroids = {centroid(get_moments(contours[0]))}\n",
+          f"Perimeter length {perimeter(contours[0])}")
+    disp_bound_box(img_matte, contours[0], rotated=True)
