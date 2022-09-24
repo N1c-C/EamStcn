@@ -65,7 +65,28 @@ def eval_boundary(foreground_mask, gt_mask, bound_th=0.008):
     return F, precision, recall
 
 
-gt_mask = cv.imread('00000.png', cv.CV_8UC1)
-foreground_mask = cv.imread('00000_pred.png', cv.CV_8UC1)
+def eval_iou(foreground_mask, gt_mask):
 
-print(eval_boundary(foreground_mask, gt_mask, bound_th=0.008))
+    """ Compute region similarity (intersection over union IoU as the Jaccard Index.
+    As github fperazzi/davis but with np.bool operations removed as they have been dropped.
+    Mask values should be 0 or 1
+    :params foreground_mask (ndarray): Predicted 2D binary annotation mask - HxW of form cv.CV_8UC1.
+            gt_mask (ndarray): Provided 2D binary annotation mask - HxW of form cv.CV_8UC1.
+    :returns jaccard (float): region similarity
+
+    """
+
+    # test for a blank image  and avoid div by 0 err
+    if np.isclose(np.sum(gt_mask), 0) and np.isclose(np.sum(foreground_mask), 0):
+        return 1
+    else:
+        # &, |  elementwise operators
+        return np.sum((gt_mask & foreground_mask)) / np.sum((gt_mask | foreground_mask))
+
+
+if __name__ == '__main__':
+    gt_mask = cv.imread('00000.png', cv.CV_8UC1)
+    foreground_mask = cv.imread('00000_pred.png', cv.CV_8UC1)
+
+    print(eval_boundary(foreground_mask, gt_mask, bound_th=0.008))
+    print('IoU J: ', eval_iou(foreground_mask, gt_mask))
