@@ -1,3 +1,10 @@
+"""
+A set of functions that use OpenCV to return the contours, Hu Moments, area and perimeter of a shape.
+Or display a bounding box around it.
+Author: Nic C
+"""
+
+
 import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
