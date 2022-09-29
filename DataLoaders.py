@@ -67,15 +67,16 @@ class SelectedImageFolder(torchvision.datasets.DatasetFolder):
 
 
 def find_classes(directory: str, chosen_classes: list):
-    """Finds the class folders in a dataset.
+    """Finds the class folders in a dataset. This is an over load function to
+    to allow for customisation
     Tuple[List[str], Dict[str, int]
   See :class:`DatasetFolder` for details.
   """
-    classes = sorted(
-        entry.name for entry in os.scandir(directory) if entry.is_dir() and entry.name in chosen_classes)
+    dir_list = [entry.name for entry in os.scandir(directory) if entry.is_dir()]
+    classes = [(name) for chosen in chosen_classes for name in dir_list if name == chosen]
+    print(type(classes),f'contents{classes}')
     if not classes:
         raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
-
     class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
     return classes, class_to_idx
 
