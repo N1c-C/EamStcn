@@ -44,8 +44,6 @@ class SelectedImageFolder(torchvision.datasets.DatasetFolder):
         self.samples = samples
         self.targets = [s[1] for s in samples]
 
-        print(self.root, '\n', chosen_classes)
-
     @staticmethod
     def make_dataset(
             directory: str,
@@ -74,7 +72,6 @@ def find_classes(directory: str, chosen_classes: list):
   """
     dir_list = [entry.name for entry in os.scandir(directory) if entry.is_dir()]
     classes = [(name) for chosen in chosen_classes for name in dir_list if name == chosen]
-    print(type(classes),f'contents{classes}')
     if not classes:
         raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
     class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
