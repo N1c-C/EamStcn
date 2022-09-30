@@ -1,7 +1,10 @@
 import numpy as np
 import cv2 as cv
+import pandas as pd
+import csv
 from contours_moments import get_contours
 from skimage.morphology import disk
+
 
 """ Utilities for computing, reading and saving DAVIS benchmark evaluation."""
 
@@ -84,9 +87,29 @@ def eval_iou(foreground_mask, gt_mask):
         return np.sum((gt_mask & foreground_mask)) / np.sum((gt_mask | foreground_mask))
 
 
-if __name__ == '__main__':
-    gt_mask = cv.imread('00000.png', cv.CV_8UC1)
-    foreground_mask = cv.imread('00000_pred.png', cv.CV_8UC1)
+def save_results(raw_results, filename):
+    """Takes a dict of raw results and saves them as a csv file using pandas data frames
+    The df is transposed to save the sequences as rows .
+    param: results: dict {'sequence': {'j': , 'f',: }}"""
+    pd.DataFrame(raw_results).transpose().to_csv(filename)
 
-    print(eval_boundary(foreground_mask, gt_mask, bound_th=0.008))
-    print('IoU J: ', eval_iou(foreground_mask, gt_mask))
+
+def save_calc_results(calc_results, filename):
+    """Takes a dict of calculated results from calc_result and saves them
+    as a csv file using pandas data frames.
+    param: results: dict {'sequence': {'j': , 'f',: }}"""
+    pd.DataFrame(calc_results).to_csv(filename)
+
+
+if __name__ == '__main__':
+    
+    # gt_mask = cv.imread('00000.png', cv.CV_8UC1)
+    # foreground_mask = cv.imread('00000_pred.png', cv.CV_8UC1)
+    # 
+    # print(eval_boundary(foreground_mask, gt_mask, bound_th=0.008))
+    # print('IoU J: ', eval_iou(foreground_mask, gt_mask))
+
+    results = {'bear': {'f':[(1,2,3),(2,3,4)], 'j':[.8,.9]},'car': {'f':[(6,7,1),(3,3,8)], 'j':[.5,.3]}}
+
+    save_results(results)
+
