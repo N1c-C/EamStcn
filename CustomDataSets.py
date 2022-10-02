@@ -1,15 +1,73 @@
 """
 Custom Pytorch dataset loader classes.
 class: SelectedImageFolder modifies the ImageFolder class and takes a list of the class folders to be read from the root
-class: ImageList forms a dataset from a list of  path names
+class: DavisImageDataset forms a dataset from a list of path names in the form provided with the DAVIS datasets
 Author: Nic C
 """
 
 import os
 import torchvision
+from torch.utils.data import Dataset
 from torchvision.datasets.folder import IMG_EXTENSIONS
 from torchvision.datasets.folder import default_loader, has_file_allowed_extension, make_dataset
 from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
+
+
+class DavisImageDataset(Dataset):
+    """Custom Torch Dataset that reads the DAVIS image sets text file
+    containing the paths of images and the corresponding mask annotation -
+    creates a dataset of the image, mask and sequence.
+    The get item returns a tupple of the two images
+    param: imglist: path to txt file of list of imgs and annotations.
+            Paths are from the given image and annotation directories containing
+            the images and  and should be of the form:
+            path/to/image001 path/to/annotation001
+            path/to/image002 path/to/annotation002 ...
+
+    Param: img_dir: address of the root folder containing the image data
+    param: annotation_dir: address of the root folder containing the annotation data
+    param: transform: list of torch transforms performed on image data
+    param: target_transform: list of torch transforms performed on annotation data
+
+    returns: the data set returns tupples of:
+    (img(image tensor), annotation(image tensor), sequence(str))
+
+    note: sequence is the name of the imagefolder for the given DAVIS image sequence"""
+
+    def __init__(self, imglist, img_dir, annotation_dir, transform=None,
+                 target_transform=None):
+        self.img_labels = pd.read_csv(imglist, sep='\s+')
+        self.img_dir = img_dir
+        self.annotation_dir = annotation_dir
+        self.transform = transform
+        self.target_transform = target_transform
+        self.classes, self.label_cnt = \
+            self.find_classes(self.img_labels.iloc[:, 0].tolist())
+
+    def __len__(self):
+        return len(self.img_labels)
+
+    def __getitem__(self, idx):
+        # img_path = os.path.join(self.img_dir, self.img_labels.iloc[idx, 0])
+        # annotation_path = os.path.join(self.annotation_dir, self.img_labels.iloc[idx, 1])
+        img_path = self.img_dir + self.img_labels.iloc[idx, 0]
+        annotation_path = self.annotation_dir + self.img_labels.iloc[idx, 1]
+        image = Image.open(img_path)
+        annotation = Image.open(annotation_path)
+        # returns the base directory of the file path
+        sequence = os.path.basename(os.path.dirname(img_path))
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            annotation = self.target_transform(annotation)
+        return image, annotation, sequence
+
+    def find_classes(self, imglist):
+        label_cnt = {}
+        for path in imglist:
+            label_cnt[os.path.basename(os.path.dirname(path))] = \
+                label_cnt.get(os.path.basename(os.path.dirname(path)), 0) + 1
+        return label_cnt.keys(), label_cnt
 
 
 class SelectedImageFolder(torchvision.datasets.DatasetFolder):

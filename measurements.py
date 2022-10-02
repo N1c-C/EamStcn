@@ -1,8 +1,8 @@
+import os
 import numpy as np
 import cv2 as cv
 import pandas as pd
-import csv
-from contours_moments import get_contours
+from ContoursAndMoments import get_contours
 from skimage.morphology import disk
 
 
@@ -87,18 +87,61 @@ def eval_iou(foreground_mask, gt_mask):
         return np.sum((gt_mask & foreground_mask)) / np.sum((gt_mask | foreground_mask))
 
 
-def save_results(raw_results, filename):
-    """Takes a dict of raw results and saves them as a csv file using pandas data frames
-    The df is transposed to save the sequences as rows .
-    param: results: dict {'sequence': {'j': , 'f',: }}"""
-    pd.DataFrame(raw_results).transpose().to_csv(filename)
+def save_results_csv(raw_results, filename):
+    """Takes a dict of results for a sequence and saves them as a csv file using pandas data frames
+    The df is transposed to save the metrics for sequences as rows .
+    param: results: dict {'sequence': {'j': , 'f',: }}
+    param: filename; full path of the file minus the extension"""
+    pd.DataFrame(raw_results).transpose().to_csv(unique_name(filename +'.csv'))
 
 
-def save_calc_results(calc_results, filename):
-    """Takes a dict of calculated results from calc_result and saves them
-    as a csv file using pandas data frames.
-    param: results: dict {'sequence': {'j': , 'f',: }}"""
-    pd.DataFrame(calc_results).to_csv(filename)
+def unique_name(filename):
+    """Tests to see if a file exists and adds an incremental version number if it does.
+    :param filename: full path and name for the file to be saved
+
+    based on https://stackoverflow.com/questions/13852700/create-file-but-if-name-exists-add-number"""
+
+    name, ext = os.path.splitext(filename)
+    cnt = 1
+    newname = name
+    while os.path.exists(newname+ext):
+        newname = name + '_' + f'{cnt:03}'
+        cnt += 1
+
+    return newname+ext
+
+
+def display_metrics(res, filename=None):
+    """Calculates,displays and saves (optional) the average IoU(J) & Boundary values (F) and J&F for all the frames of a
+    video sequence. If no file name provided the results are not saved
+
+     param: results: A dict of the form:
+    {'seq name : {'j': [lst of J values for all frames], 'f': [lst of tuples (F, Precision, Recall) for all frames]}}
+     params: filename: Optional path/name of the file to save the results as a csv file."""
+
+    calc_res = {}
+    print(
+        f'Sequence{" ": <15s}J{" ": <10s}F{" ": <10s}J&F{" ": <8s}Best Frame(J){" ": <8s}Worst frame(J)'
+        f'{" ": <8s}Total Frames')
+
+    for seq, scores in res.items():
+        samples = len(scores['j'])
+        f = [val[0] for val in scores['f']]  # unpack the tuple for F values only
+        calc_res[seq] = {'J': sum(scores["j"]) / samples,
+                         'F': sum(f) / samples,
+                         'J&F': (sum(scores["j"]) / samples + sum(f) / samples) / 2,
+                         'Best Frame': np.argmax(f),
+                         'Worst Frame': np.argmin(f),
+                         'Total Frames': samples}
+        print(
+            f'{seq: <18s}    {calc_res[seq]["J"]:.2f}',
+            f'      {calc_res[seq]["F"]:.2f}',
+            f'      {calc_res[seq]["J&F"]:.2f}',
+            f'          {calc_res[seq]["Best Frame"]: 5}{"  ": <6s}',
+            f'          {calc_res[seq]["Worst Frame"]: 5}{"  ": <6s}'
+            f'          {samples}')
+    if filename is not None:
+        save_results_csv(calc_res, filename)
 
 
 if __name__ == '__main__':
@@ -111,5 +154,8 @@ if __name__ == '__main__':
 
     results = {'bear': {'f':[(1,2,3),(2,3,4)], 'j':[.8,.9]},'car': {'f':[(6,7,1),(3,3,8)], 'j':[.5,.3]}}
 
-    save_results(results)
+    # save_results_csv(results, 'raw_results')
+    display_metrics(results, 'final_results')
+    display_metrics(results)
+
 
