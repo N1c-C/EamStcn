@@ -14,6 +14,7 @@ def eval_boundary(foreground_mask, gt_mask, bound_th=0.008):
     Compute mean,recall and decay from per-frame evaluation.
     Calculates precision/recall for boundaries between foreground_mask and
     gt_mask.
+    :param bound_th:
     :param foreground_mask: (ndarray) binary segmentation image.
     :param gt_mask:         (ndarray): binary annotated image.
     Returns:
@@ -22,7 +23,6 @@ def eval_boundary(foreground_mask, gt_mask, bound_th=0.008):
         R (float): boundaries recall
 
     Based on github fperazzi/davis but using openCV functions for finding contours
-    and dilation to significantly improve speed
     """
     # tests the mask is only 2 dimensional H X W. Raise AssertionError otherwise
     assert len(foreground_mask.shape) == 2, "Foreground mask should be 2D (HxW)"
