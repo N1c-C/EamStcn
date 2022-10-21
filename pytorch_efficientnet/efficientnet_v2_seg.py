@@ -1,3 +1,13 @@
+"""This is a modified factory script from https://github.com/abhuse/pytorch-efficientnet
+It enables a PyTorch EfficientNetV2 model to be instantiated either for classification or segmentation.py
+When creating a segmentation model, the final convolution stage and the original head layers are removed.
+The output from the remaing convolution stages are fed into  a feature pyramid network FPN followed by a
+final convolution layer for single channel mask predictions.
+
+Use BCEWithLogitsLoss() loss function and seg=True for a segmentation model
+
+Both options can be preloaded with the Imagenet weights for effective transfer learning"""
+
 import collections.abc as container_abc
 from collections import OrderedDict
 from math import ceil, floor
@@ -6,6 +16,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils import model_zoo
+from torchvision.ops import FeaturePyramidNetwork as fpn
+
 
 
 def _pair(x):
@@ -29,6 +41,10 @@ def torch_conv_out_spatial_shape(in_spatial_shape, kernel_size, stride):
 
 
 def get_activation(act_fn: str, **kwargs):
+    """Returns the  torch activation function given an argument.
+    Add/Delete extra activations as neccessary.
+    No checking performed on kwargs so check torch documentation for acceptable
+    arguments """
     if act_fn in ('silu', 'swish'):
         return nn.SiLU(**kwargs)
     elif act_fn == 'relu':
@@ -48,7 +64,8 @@ def get_activation(act_fn: str, **kwargs):
 
 
 def round_filters(filters, width_coefficient, depth_divisor=8):
-    """Round number of filters based on depth multiplier."""
+    """Rounds the number of filters to a whole number after using the appropriate
+     depth multiplier for a given model - See paper for the coefficient values ."""
     min_depth = depth_divisor
     filters *= width_coefficient
     new_filters = max(min_depth, int(filters + depth_divisor / 2) // depth_divisor * depth_divisor)
@@ -56,7 +73,8 @@ def round_filters(filters, width_coefficient, depth_divisor=8):
 
 
 def round_repeats(repeats, depth_coefficient):
-    """Round number of filters based on depth multiplier."""
+    """Rounds  the number of blocks in a stage to a whole number based
+    on depth multiplier described in the original paper."""
     return int(ceil(depth_coefficient * repeats))
 
 
@@ -104,13 +122,13 @@ class SamePaddingConv2d(nn.Module):
 
         in_height, in_width = self._in_spatial_shape
         filter_height, filter_width = kernel_size
-        stride_heigth, stride_width = stride
+        stride_height, stride_width = stride
         dilation_height, dilation_width = dilation
 
-        out_height = int(ceil(float(in_height) / float(stride_heigth)))
+        out_height = int(ceil(float(in_height) / float(stride_height)))
         out_width = int(ceil(float(in_width) / float(stride_width)))
 
-        pad_along_height = max((out_height - 1) * stride_heigth +
+        pad_along_height = max((out_height - 1) * stride_height +
                                filter_height + (filter_height - 1) * (dilation_height - 1) - in_height, 0)
         pad_along_width = max((out_width - 1) * stride_width +
                               filter_width + (filter_width - 1) * (dilation_width - 1) - in_width, 0)
@@ -154,6 +172,11 @@ class SamePaddingConv2d(nn.Module):
 
 
 class SqueezeExcitate(nn.Module):
+    """Squeeze Excite takes into account the most relevant channels when
+    computing the output of a stack of features. Each channel is squeezed  down
+    to a single number producing vector N. After some function (activation or small NN)
+    the resultant vector acts as a set of weights for the importance of the original features. """
+
     def __init__(self,
                  in_channels,
                  se_size,
@@ -332,7 +355,7 @@ class FusedMBConvBlockV2(nn.Module):
             self.expand_act = get_activation(act_fn, **act_kwargs)
             self.ops_lst.extend([self.expand_conv, self.expand_bn, self.expand_act])
 
-        # Squeeze and Excitate
+        # Squeeze and Excite
         if se_size is not None:
             self.se = SqueezeExcitate(exp_channels,
                                       se_size,
@@ -411,7 +434,7 @@ class EfficientNetV2(nn.Module):
                       'out_channel': [16, 32, 48, 96, 112, 192],
                       'se_ratio': [None, None, None, 0.25, 0.25, 0.25],
                       'conv_type': [1, 1, 1, 0, 0, 0],
-                      'is_feature_stage': [False, True, True, False, True, True],
+                      'is_feature_stage': [True, True, True, True, True, True],
                       'width_coefficient': 1.0,
                       'depth_coefficient': 1.1,
                       'train_size': 192,
@@ -533,10 +556,20 @@ class EfficientNetV2(nn.Module):
                  bn_momentum=0.01,
                  pretrained=False,
                  progress=False,
+                 seg_model=False
                  ):
         super().__init__()
 
+        # As the model is built the repeated sections are added to the blocks list
+        # self.chls = in_channels
         self.blocks = nn.ModuleList()
+
+        # The index of the final block in each is stage is appended to end_of_stage_idxs
+        # During forward() these indexes can be used to extract the appropriate features
+        # for the decoder/ feature pyramid network FPN of a segmentation model.
+        self.end_of_stage_idxs = []
+        self.seg_model = seg_model
+
         self.model_name = model_name
         self.cfg = self._models[model_name]
 
@@ -547,9 +580,8 @@ class EfficientNetV2(nn.Module):
         dropout_rate = self.cfg['dropout'] if dropout_rate is None else dropout_rate
         _input_ch = in_channels
 
-        self.feature_block_ids = []
-
-        # stem
+        # Define the stem block of EffNetV2. The repeated scalable blocks are
+        # appended to this
         if tf_style_conv:
             self.stem_conv = SamePaddingConv2d(
                 in_spatial_shape=in_spatial_shape,
@@ -579,22 +611,28 @@ class EfficientNetV2(nn.Module):
 
         drop_connect_rates = self.get_dropconnect_rates(drop_connect_rate)
 
-        # Unpack self.cgf[x] and zip with key values
+        if self.seg_model:
+            self.feature_block_ids = []  # Stores the indexes of the end of stage conv stages
+            # force zip to drop final stage since zip is determined by the shortest element
+            self.cfg['out_channel'] = self.cfg['out_channel'][:-1]  # removes last value
+
+        self.cfg['in_channel'] = (
+            [round_filters(chs, self.cfg['width_coefficient']) for chs in self.cfg['in_channel']])
+        self.cfg['out_channel'] = (
+            [round_filters(chs, self.cfg['width_coefficient']) for chs in self.cfg['out_channel']])
+        self.cfg['num_repeat'] = (
+            [round_repeats(rpt, self.cfg['depth_coefficient']) for rpt in self.cfg['num_repeat']])
+
+        # Unpack self.cfg and zip values to build the main blocks/stages of EfficientNet V2
         stages = zip(*[self.cfg[x] for x in
                        ['num_repeat', 'kernel_size', 'stride', 'expand_ratio', 'in_channel', 'out_channel', 'se_ratio',
                         'conv_type', 'is_feature_stage']])
         idx = 0
+        self.cfg['num_repeat'] = self.cfg['num_repeat'][:-1]  # force the zip function to lose the last stage
 
         for stage_args in stages:
             (num_repeat, kernel_size, stride, expand_ratio,
              in_channels, out_channels, se_ratio, conv_type, is_feature_stage) = stage_args
-
-            in_channels = round_filters(
-                in_channels, self.cfg['width_coefficient'])
-            out_channels = round_filters(
-                out_channels, self.cfg['width_coefficient'])
-            num_repeat = round_repeats(
-                num_repeat, self.cfg['depth_coefficient'])
 
             conv_block = MBConvBlockV2 if conv_type == 0 else FusedMBConvBlockV2
 
@@ -625,21 +663,32 @@ class EfficientNetV2(nn.Module):
             if is_feature_stage:
                 self.feature_block_ids.append(idx - 1)
 
+            if self.seg_model:
+                self.end_of_stage_idxs.append(idx - 1)
+
         head_conv_out_channels = round_filters(1280, self.cfg['width_coefficient'])
 
-        self.head_conv = nn.Conv2d(in_channels=in_channels,
-                                   out_channels=head_conv_out_channels,
-                                   kernel_size=1,
-                                   bias=bias)
-        self.head_bn = nn.BatchNorm2d(num_features=head_conv_out_channels,
-                                      eps=bn_epsilon,
-                                      momentum=bn_momentum)
-        self.head_act = get_activation(activation, **activation_kwargs)
+        if not self.seg_model:
+            self.head_conv = nn.Conv2d(in_channels=in_channels,
+                                       out_channels=head_conv_out_channels,
+                                       kernel_size=1,
+                                       bias=bias)
+            self.head_bn = nn.BatchNorm2d(num_features=head_conv_out_channels,
+                                          eps=bn_epsilon,
+                                          momentum=bn_momentum)
+            self.head_act = get_activation(activation, **activation_kwargs)
 
-        self.dropout = nn.Dropout(p=dropout_rate)
+            self.dropout = nn.Dropout(p=dropout_rate)
 
-        self.avpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(head_conv_out_channels, n_classes)
+            self.avpool = nn.AdaptiveAvgPool2d((1, 1))
+            self.fc = nn.Linear(head_conv_out_channels, n_classes)
+        else:
+            self.stage_outputs_dict = OrderedDict()  # fpn requires order dict of stage feature maps
+            # self.fpn = fpn(self.out_channels, 1)
+            self.fpn = fpn(self.cfg['out_channel'], 1)  # input channels per stage and single channel output
+            # self.final_upsample = nn.Upsample(scale_factor=2)
+            self.final_decon = nn.ConvTranspose2d(in_channels=1, out_channels=1, kernel_size=2, stride=2)
+            self.head_out = nn.Conv2d(in_channels=1, out_channels=1, kernel_size=3, padding='same')
 
         if pretrained:
             self._load_state(_input_ch, n_classes, progress, tf_style_conv)
@@ -651,7 +700,7 @@ class EfficientNetV2(nn.Module):
                                         progress=progress,
                                         file_name=self.cfg['model_name'])
 
-        strict = True
+        strict = False if self.seg_model else True
 
         if not tf_style_conv:
             state_dict = OrderedDict(
@@ -679,6 +728,8 @@ class EfficientNetV2(nn.Module):
         return [drop_connect_rate * i / total for i in range(total)]
 
     def get_features(self, x):
+        """Given input x:  returns a list of features from the end of each stage
+        that has been set as True in the _model dictionary"""
         x = self.stem_act(self.stem_bn(self.stem_conv(x)))
 
         features = []
@@ -692,11 +743,21 @@ class EfficientNetV2(nn.Module):
         return features
 
     def forward(self, x):
-        x = self.stem_act(self.stem_bn(self.stem_conv(x)))
-        for block in self.blocks:
-            x = block(x)
-        x = self.head_act(self.head_bn(self.head_conv(x)))
-        x = self.dropout(torch.flatten(self.avpool(x), 1))
-        x = self.fc(x)
 
-        return x
+        stage_idx = 1
+        x = self.stem_act(self.stem_bn(self.stem_conv(x)))
+        for idx, block in enumerate(self.blocks):
+            x = block(x)
+            if self.seg_model:
+                if idx in self.end_of_stage_idxs:
+                    self.stage_outputs_dict['block_' + str(stage_idx)] = x
+                    stage_idx += 1
+
+        if not self.seg_model:
+            x = self.head_act(self.head_bn(self.head_conv(x)))
+            x = self.dropout(torch.flatten(self.avpool(x), 1))
+            x = self.fc(x)
+            return self.head_out(x)
+        else:
+            x = self.fpn(self.stage_outputs_dict)
+            return self.head_out(self.final_decon(x['block_1']))
