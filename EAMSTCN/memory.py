@@ -111,11 +111,7 @@ class MemoryBank:
 
         if self.max_size is not None:
             self.update_lru(indices.unique())
-        s_max = torch.nn.Softmax(dim=1)
-        # print('top')
-        # print(top_k_values.shape)
         y = torch.softmax(top_k_values, dim=1)  # Tensor size  B * THW * HW
-        # affinity.zero_().scatter_(1, indices, y.type(affinity.dtype))
         affinity.zero_().scatter_(1, indices, y)
 
         return affinity
@@ -164,9 +160,11 @@ class MemoryBank:
 
     def update_lru(self, cols):
         """
+        Time stamps features when they are used. The div effectively returns the frames positions
+        in the flattened chain of keys
+        "trunc" - rounds the results of the division towards zero. Equivalent to C-style integer division
+        :param cols: is a tensor of the unique indices from the affinity calculation
 
-        :param cols:
-        :return:
         """
         hw = self.h * self.w
         print('frames used: ', torch.div(cols, hw, rounding_mode='trunc').unique())
@@ -175,9 +173,8 @@ class MemoryBank:
     @staticmethod
     def calc_img_var(prev_frame, prev_mask, curr_frame, curr_mask, last_val=0, last_msk=0):
         """ Image variation calculation inspired by swiftnet: https://arxiv.org/abs/2102.04604 but a much simpler
-        idea
-        Determines the amount of change between frames to determine if the current frame should be saved to the memory
-
+        idea. Determines the amount of difference between frames  as a percentage of all the pixels. The value is used
+        by adaptive evaluator mem_trigger_function
         :param prev_frame: The previous frame as a torch tensor
         :param prev_mask: The predicted mask for the previous frame - torch tensor
         :param curr_frame: The current input image
@@ -185,25 +182,10 @@ class MemoryBank:
         :return:
         """
         pixels = prev_frame.shape[1] * prev_frame.shape[2]
-        # img_diff = torch.sum((torch.sum(torch.abs(curr_frame - prev_frame), dim=0) > 4) / 10)
-        # print('image diff', img_diff)
-        # print('percentage', torch.sum((torch.sum(torch.abs(curr_frame - prev_frame), dim=0) > 4) / pixels).item() * 100)
-        # msk_diff = torch.sum((torch.sum(torch.abs(curr_mask - prev_mask), dim=0) > 0.99)) / 10
-        #
-        # print('old', msk_diff, img_diff)
-
 
         img_diff = torch.sum((torch.sum(torch.abs(curr_frame - prev_frame), dim=0) > 4) / pixels) * 100
         msk_diff = torch.sum((torch.sum(torch.abs(curr_mask - prev_mask), dim=0) > 0.99) / pixels) * 100
 
-        # print('new', msk_diff, img_diff)
-        # imv = 0
-        # _, col, row = img_diff.shape
-        # for r in range(row):
-        #     for c in range(col):
-        #         if (img_diff[0][c][r].item() > 1):  #  or (msk_diff[0][c][r].item() > 0)
-        #             imv += 1
-        # print(img_diff.item(), (img_diff -last_val).item(), msk_diff.item(), (msk_diff-last_msk).item())
         return img_diff, msk_diff
 
 
@@ -268,7 +250,7 @@ class TrainMemoryBank(MemoryBank):
         """ Overload function for training. As per STCN paper equation 5 (last term discarded).
          calculates -ve squared euclidean distance between the pseudo key memory and query key.
          Unlike the evaluation function the whole affinity matrix is used  - not the top k.
-         Affinity is regulated #TODO why the maxes are deleted?
+         Affinity is regulated
         :param key_mem_kM: Tensor of the form B, Ck, T, H, W
         :param q_key_kQ: Tensor of the form B, Ck, T, H, W
         :return: -ve euclidean distance similarity tensor """

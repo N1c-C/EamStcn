@@ -30,8 +30,7 @@ def all_to_onehot(masks, labels):
 
 class YouTubeTestDataset(Dataset):
     def __init__(self, data_root, res=480):
-        # self.image_dir = path.join(data_root, 'all_frames', split+'_all_frames', 'JPEGImages')
-        # self.mask_dir = path.join(data_root, split, 'Annotations')
+
         self.image_dir = data_root + '/JPEGImages'
         self.mask_dir = data_root + '/Annotations/'
 
