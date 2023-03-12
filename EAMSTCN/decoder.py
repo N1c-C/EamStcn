@@ -62,7 +62,7 @@ class Decoder1(StcnDecoder):
 
     def __init__(self, channels):
         print(channels)
-        super().__init__()
+        super().__init__(channels)
         self.compress = ResBlock(channels[-1], 512)
         self.up_16_8 = UpsampleBlock(channels[-2], 512, 256)  # 1/16 -> 1/8
         self.up_8_4 = UpsampleBlock(channels[-3], 256, 256)  # 1/8 -> 1/4
@@ -74,7 +74,7 @@ class Decoder2(StcnDecoder):
 
     def __init__(self, channels):
         print(channels)
-        super().__init__()
+        super().__init__(channels)
         self.compress = ResBlock(channels[-1], 512)
         self.up_16_8 = UpsampleBlock(channels[-2], 512, 512)  # 1/16 -> 1/8
         self.up_8_4 = UpsampleBlock(channels[-3], 512, 512)  # 1/8 -> 1/4

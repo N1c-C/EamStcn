@@ -1,48 +1,49 @@
 """
-
+Phase two training script. Training takes place on three temporally ordered frames from the DAVIS and YouTube datasets
+The images gradually increase in size along with the augmentation transforms applied following progressive training
+from EfficientNetV2: Smaller Models and Faster Training https://arxiv.org/abs/2104.00298
+The gap between the frames increases from 5...to 25....and back to 5 as per https://github.com/seoungwugoh/STM
 """
 from multiprocessing import freeze_support
-
 from torch.utils.data import DataLoader, ConcatDataset
 from EAMSTCN.datasets.train_datasets import *
 from train.trainer import Trainer
 from utils import *
 import torch.optim as optim
-from EAMSTCN.EamStcn import EamStm
+from EAMSTCN.EamStcn import EamStcn
 import torch.nn as nn
 
-LEARNING_RATE = 1e-5
-# DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-DEVICE = 'mps'
-BATCH_SIZE = 8
-NUM_EPOCHS = 10
-NUM_WORKERS = 4
-IMAGE_HEIGHT = 60
-IMAGE_WIDTH = 100
+# Cuda is chosen as default if it is available
+DEVICE = 'mps' if torch.backends.mps else 'cpu'
+if torch.cuda.is_available():
+    DEVICE = "cuda"
+
+LEARNING_RATE = 1e-5  # The starting learning rate: Either remains constant or steps as per schedular
+BATCH_SIZE = 8  # Batches of eight seem to train well
+NUM_EPOCHS = 10  # The Epochs per size/gap. i.e 10 = 80 Epochs in total
+NUM_WORKERS = 2  # Speed up data loading
 PIN_MEMORY = True
-LOG_IMG_RATE = NUM_EPOCHS / 2
-SAVE_IMG_RATE = 5
-SAVE_MODEL_RATE = 2
+LOG_IMG_RATE = NUM_EPOCHS / 2  # When to log images to tensorboard
+SAVE_IMG_RATE = 5  # Save example predictions every x epochs
+SAVE_MODEL_RATE = 2  # Save a checkpoint every x epochs
 
-# GT_ROOT = '/Users/Papa/DAVIS_2_obj/trainval/Annotations/480p/'
-# IM_ROOT = '/Users/Papa/DAVIS_2_obj/trainval/JPEGImages/480p/'
-
+# The locations for the datasets to be used
 ROOT = '/Users/Papa/trainval/'
 YTV_ROOT = '/Users/Papa/yv_train'
 
-SAVE_IMG_DIR = "/Users/Papa/Results/b1_b1_ex512/images/"
-SAVE_MODEL_DIR = "/Users/Papa/Results/b1_b1_ex512/checkpoints/"
-MODEL_NAME = 'b1_b1_ex1024_stcn_512_512_decoder_square_yt19'  # save name for checkpoints
+SAVE_IMG_DIR = "/Users/Papa/Results/b1_b1_ex512/images/"  # Location for saving example predictions
+SAVE_MODEL_DIR = "/Users/Papa/Results/b1_b1_ex512/checkpoints/"  # Location for saving checkpoints
+MODEL_NAME = 'b1_b1_ex1024_stcn_512_512_decoder_square_yt19'  # Name for checkpoints: epoch number is appended to this
 
+# Provide a path to checkpoint if restarting training OTHERWISE set as None
 MODEL_PATH = '/Users/Papa/Trained Models/b1_b1/b1_b1_stcn_dec_ck64_ex512_phase2_yt19_no_amp_46.pth.tar'
-# MODEL_PATH = None  # location of a checkpoint to load
 START_FROM_EPOCH = None  # None or Int: Set this when loading saved weights and restarting a schedule
 
 
 def main():
-    logger = Logger("b3_b2_test")
+    logger = Logger("b3_b2_test")  # Starts a TensorBoard logger - Functionality limited in PyTorch
 
-    model = EamStm(
+    model = EamStcn(
         key_encoder_model='b1',  # EfficientNetV2 letter or resnet
         value_encoder_model='b1',  # EfficientNetV2 letter or resnet
         key_pretrained=False,
@@ -67,21 +68,17 @@ def main():
     #     sd = (torch.load(MODEL_PATH, map_location=torch.device('mps'))['state_dict'])
     #     model.load_state_dict(sd, strict=False)
 
-    # # Change ck to 128 so remove proj key parameters
-    if MODEL_PATH is not None:
-        sd = (torch.load(MODEL_PATH, map_location=torch.device('mps'))['state_dict'])
-        x = sd.copy()
-        for key, value in x.items():
+    """When transfer learning - we can pop the weighs from the dictionary that are no longer relevant before 
+    loading the rest"""
 
-
-            # if  in key:
-            #     print(key)
-            #     sd.pop(key)
-            if 'compress' or 'feature_expansion' or 'key_projection' in key:
-                sd.pop(key)
-
-
-        model.load_state_dict(sd, strict=False)
+    # if MODEL_PATH is not None:
+    #     sd = (torch.load(MODEL_PATH, map_location=torch.device('mps'))['state_dict'])
+    #     x = sd.copy()
+    #
+    #     for key, value in x.items():
+    #         if 'compress' or 'feature_expansion' or 'key_projection' in key:
+    #             sd.pop(key)
+    #     model.load_state_dict(sd, strict=False)
 
     # Freeze BN layers
     for _, child in (model.named_children()):
@@ -92,26 +89,20 @@ def main():
     model = model.to(DEVICE)
     loss_fn = nn.CrossEntropyLoss()
 
-    # # loss_fn = nn.BCEWithLogitsLoss()
     optimiser = optim.NAdam(model.parameters(), lr=LEARNING_RATE)
     # if MODEL_PATH is not None:
     #     optimiser.load_state_dict(torch.load(MODEL_PATH, map_location='mps')['optimiser'])
 
-    scheduler = optim.lr_scheduler.StepLR(optimiser, step_size=40, gamma=0.2, verbose=False)
+    scheduler = optim.lr_scheduler.StepLR(optimiser, step_size=25, gamma=0.1, verbose=False)
     # scheduler = None
     # if MODEL_PATH is not None:
     #     scheduler.load_state_dict(torch.load(MODEL_PATH, map_location='mps')['schedular'])
+
+    # scaler required when training with mixed precision to scale the gradients since they may
+    # be too small to be represented by fp16
     scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
 
-    eam_trainer = Trainer()  # Wrapper class for training function
-
-    # max_distance = 10
-    # davis_data = VOSTrainDataset(IM_ROOT, GT_ROOT, max_distance, height=80, width=120)
-    # davis_loader = DataLoader(davis_data, batch_size=16, num_workers=2, pin_memory=False, shuffle=True)
-    # davis_data = VOSTrainDataset(IM_ROOT, GT_ROOT, max_distance, height=80, width=120)
-    # davis_loader = DataLoader(davis_data, batch_size=16, num_workers=2, pin_memory=False, shuffle=True)
-    # val_loader = DataLoader(cars_val_data, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, pin_memory=PIN_MEMORY,
-    #                         shuffle=True)
+    eamstcn_trainer = Trainer()  # Wrapper class for training function
 
     # Build datasets progressively increasing the size and the amount of augmentation. Larger images should have larger
     # transforms
@@ -120,25 +111,6 @@ def main():
     vos_sizes = [('small', 192, 192, .6, 10), ('mid', 224, 224, .8, 15),
                  ('large', 256, 256, 1, 20), ('xlarge', 384, 384, 1.2, 25), ('taper1', 384, 384, 1, 15),
                  ('taper2', 384, 384, .8, 10), ('taper3', 384, 384, .6, 7), ('taper4', 384, 384, .4, 5)]
-
-    # vos_sizes = [('small', 112, 176, .6, 10), ('mid', 128, 224, .8, 15),
-    #               ('large', 196, 336, 1, 20), ('xlarge', 256, 448, 1.2, 25), ('taper1', 256, 448, 1, 20),
-    #               ('taper2', 256, 448, .8, 15), ('taper3', 256, 448, .6, 10), ('taper4', 256, 448, .4, 5)]
-
-    # vos_sizes = [('xsmall', 60, 112, .4, 5), ('small', 90, 168, .6, 10), ('mid', 120, 224, .8, 15),
-    #              ('large', 180, 336, 1, 20), ('xlarge', 240, 448, 1.2, 25), ('taper1', 240, 448, 1, 20),
-    #              ('taper2', 240, 448, .8, 15), ('taper3', 240, 448, .6, 10), ('taper4', 240, 448, .4, 5)]
-
-    # vos_sizes = [('taper1', 384, 384, 1, 20),
-    # #              ('taper2', 384, 384, .8, 15), ('taper3', 240, 432, .6, 10), ('taper4', 240, 432, .4, 5)]
-    # vos_sizes = [
-    #     ('small', 192, 192, .4, 10), ('mid', 256, 256, .6, 15),
-    #     ('large', 320, 320, .8, 20), ('xlarge', 384, 384, 1, 25), ('taper1', 384, 384, 1, 20),
-    #     ('taper2', 384, 384, 1, 15), ('taper3', 384, 384, 1, 10), ('taper4', 384, 384, 1, 5)]
-
-    # vos_sizes = [
-    #              ('large', 180, 336, .8, 20), ('xlarge', 240, 448, 1.4, 25), ('taper1', 240, 448, 1.2, 20),
-    #              ('taper2', 240, 448, .8, 15), ('taper3', 240, 448, .8, 10), ('taper4', 240, 448, .4, 5)]
 
     # lose completed datasets when loading a saved epoch's set of weights
     if START_FROM_EPOCH is not None:
@@ -156,7 +128,7 @@ def main():
                                                     height=height, width=width, pf=prog_tr_factor)
 
         datasets[f'youtube_{name}'] = VOSTrainDataset(YTV_ROOT, youtube=True, max_jump=max_distance // 5,
-                                                     height=height, width=width, pf=prog_tr_factor)
+                                                      height=height, width=width, pf=prog_tr_factor)
 
     final_sets = []
 
@@ -173,17 +145,16 @@ def main():
 
     for data in final_sets:
 
-        # scheduler = optim.lr_scheduler.StepLR(optimiser, step_size=5, gamma=0.1, verbose=True)
         data_loader = DataLoader(data, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, pin_memory=PIN_MEMORY,
                                  shuffle=True)
 
-        eam_trainer.train(data_loader, model, optimiser, loss_fn, scaler, NUM_EPOCHS, step_lr=scheduler,
-                          so_far=so_far, epochs_left=epochs_left,
-                          val_loader=None, logger=logger, device=DEVICE,
-                          log_img=LOG_IMG_RATE, save_img=SAVE_IMG_RATE, model_save=SAVE_MODEL_RATE,
-                          name=MODEL_NAME, SAVE_IMG_DIR=SAVE_IMG_DIR,
-                          SAVE_MODEL_DIR=SAVE_MODEL_DIR)  # scaler val_loader=val_loader
-        # either start epoch 10 , 25 or 0
+        eamstcn_trainer.train(data_loader, model, optimiser, loss_fn, scaler, NUM_EPOCHS, step_lr=scheduler,
+                              so_far=so_far, epochs_left=epochs_left,
+                              val_loader=None, logger=logger, device=DEVICE,
+                              log_img=LOG_IMG_RATE, save_img=SAVE_IMG_RATE, model_save=SAVE_MODEL_RATE,
+                              name=MODEL_NAME, SAVE_IMG_DIR=SAVE_IMG_DIR,
+                              SAVE_MODEL_DIR=SAVE_MODEL_DIR)
+
         # Calculate epoch number to carry over
         if epochs_left is not None:
             so_far += epochs_left

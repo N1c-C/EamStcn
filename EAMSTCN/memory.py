@@ -1,4 +1,5 @@
-""" All functions and classes for the memory function of EAMSTCN"""
+""" All functions and classes for the memory of EAMSTCN. Different memory classes are used when training or
+ evaluating """
 
 import math
 import torch.nn.functional as F
@@ -130,12 +131,10 @@ class MemoryBank:
 
     def match_memory(self, q_key_kQ):
         """
-
-        :param q_key_kQ:
-        :return:
+        https://github.com/hkchengrex/STCN
+        :param q_key_kQ: Tensor k,64,h,w The embedded features to match with the best value features
+        :return: Tensor k,512,h,w
         """
-
-        # print('match memory gets q-key shape of: ', q_key_kQ.shape, '\n')
         k = self.num_objects
         _, _, h, w = q_key_kQ.shape
 
@@ -149,13 +148,8 @@ class MemoryBank:
             val_mem_vM = self.value_memory
 
         affinity = self.affinity(key_mem_kM, q_key_kQ)
-        # print('affinity tensor', affinity.shape)
-        # print('val_mem_vM ', val_mem_vM.shape, '\n')
-
         # single affinity tensor but expand it for the number of objects
         readout_mem = self._readout(affinity.expand(k, -1, -1), val_mem_vM)
-        # print('readout_mem after Bmm affinity and val mem', readout_mem.shape)
-        # print('readout_mem_final ', readout_mem.view(k, self.Cv, h, w).shape)
         return readout_mem.view(k, self.Cv, h, w)
 
     def update_lru(self, cols):
@@ -164,36 +158,32 @@ class MemoryBank:
         in the flattened chain of keys
         "trunc" - rounds the results of the division towards zero. Equivalent to C-style integer division
         :param cols: is a tensor of the unique indices from the affinity calculation
-
+        Not used currently
         """
         hw = self.h * self.w
         print('frames used: ', torch.div(cols, hw, rounding_mode='trunc').unique())
         self.lru[(torch.div(cols, hw, rounding_mode='trunc').unique())] = time.time()  # equiv of old // division
 
     @staticmethod
-    def calc_img_var(prev_frame, prev_mask, curr_frame, curr_mask, last_val=0, last_msk=0):
+    def calc_img_var(prev_frame, prev_mask, curr_frame, curr_mask):
         """ Image variation calculation inspired by swiftnet: https://arxiv.org/abs/2102.04604 but a much simpler
-        idea. Determines the amount of difference between frames  as a percentage of all the pixels. The value is used
-        by adaptive evaluator mem_trigger_function
+        idea. Determines the amount of difference between frames  as a percentage of all the pixels. Used for
+        motion-aware adaptive saving
         :param prev_frame: The previous frame as a torch tensor
         :param prev_mask: The predicted mask for the previous frame - torch tensor
         :param curr_frame: The current input image
         :param curr_mask: The current predicted mask
-        :return:
+        :return: int - percentage of pixels that are greater than the threshold
         """
         pixels = prev_frame.shape[1] * prev_frame.shape[2]
-
         img_diff = torch.sum((torch.sum(torch.abs(curr_frame - prev_frame), dim=0) > 4) / pixels) * 100
         msk_diff = torch.sum((torch.sum(torch.abs(curr_mask - prev_mask), dim=0) > 0.99) / pixels) * 100
 
         return img_diff, msk_diff
 
-
-
-
     @staticmethod
     def cal_img_norm(prev_frame, prev_mask, curr_frame, curr_mask):
-        """Image variation calculation """
+        """Image variation calculation experiment """
         img_diff = torch.linalg.norm(torch.sum((curr_frame - prev_frame), dim=1)) / 255
         # msk_diff = torch.linalg.norm((curr_mask) - (prev_mask)) / 255
         return img_diff
@@ -217,10 +207,11 @@ class MemoryBank:
         """
         hw = (self.h * self.w)  # The height and width of the 1/16 features to give number of elements per key
 
-        if t == self.T:  # the passed frame is the last one
+        if t == self.T:  # the passed frame is the last one - pop it off
             self.key_memory = self.key_memory[:, :, :-hw]
             self.value_memory = self.value_memory[:, :, :-hw]
         else:
+            # Otherwise slice out the features to be deleted
             self.key_memory = torch.cat([
                 self.key_memory[:, :, 0:t * hw],
                 self.key_memory[:, :, t * hw + hw:]], 2)
@@ -250,7 +241,7 @@ class TrainMemoryBank(MemoryBank):
         """ Overload function for training. As per STCN paper equation 5 (last term discarded).
          calculates -ve squared euclidean distance between the pseudo key memory and query key.
          Unlike the evaluation function the whole affinity matrix is used  - not the top k.
-         Affinity is regulated
+         Affinity is regulated. https://github.com/hkchengrex/STCN
         :param key_mem_kM: Tensor of the form B, Ck, T, H, W
         :param q_key_kQ: Tensor of the form B, Ck, T, H, W
         :return: -ve euclidean distance similarity tensor """
@@ -274,7 +265,7 @@ class TrainMemoryBank(MemoryBank):
     def match_memory(self, affinity, val_memory_Vm, key_f16_features):
         """ Over load function, because for training we are performing memory matching on multiple sequences
         (batches) for just two frames. The function uses the affinity matrix with a temporary memory to extract the
-        memorised value.
+        memorised value.  https://github.com/hkchengrex/STCN
         and the precomputed key_f16_features to return the final f16 features for the decoder.
         :param affinity:
         :param val_memory_Vm:

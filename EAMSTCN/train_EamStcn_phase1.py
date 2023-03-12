@@ -1,48 +1,49 @@
 """
-
+Phase one training script. Training takes place on still image sets that form sequences of three frames
+The images gradually increase in size along with the augmentation transforms applied following progressive training
+from EfficientNetV2: Smaller Models and Faster Training https://arxiv.org/abs/2104.00298
 """
+
 from torch.utils.data import DataLoader, ConcatDataset
 from EAMSTCN.datasets.train_datasets import *
 from train.trainer import Trainer
 from utils import *
 import torch.optim as optim
-from EAMSTCN.EamStcn import EamStm
+from EAMSTCN.EamStcn import EamStcn
 import torch.nn as nn
 
-LEARNING_RATE = 1e-5
-# DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-DEVICE ='mps'
-BATCH_SIZE = 8
-NUM_EPOCHS = 10
-NUM_WORKERS = 2
-IMAGE_HEIGHT = 60
-IMAGE_WIDTH = 100
+# Cuda is chosen as default if it is available
+DEVICE = 'mps' if torch.backends.mps else 'cpu'
+if torch.cuda.is_available():
+    DEVICE = "cuda"
+
+LEARNING_RATE = 1e-5  # The starting learning rate: Either remains constant or steps as per schedular
+BATCH_SIZE = 8  # Batches of eight seem to train well
+NUM_EPOCHS = 10  # The Epochs per size/gap. i.e 10 = 80 Epochs in total
+NUM_WORKERS = 2  # Speed up data loading
 PIN_MEMORY = True
-LOG_IMG_RATE = NUM_EPOCHS / 2
-SAVE_IMG_RATE = 5
-SAVE_MODEL_RATE = 1
+LOG_IMG_RATE = NUM_EPOCHS / 2  # When to log images to tensorboard
+SAVE_IMG_RATE = 5  # Save example predictions every x epochs
+SAVE_MODEL_RATE = 2  # Save a checkpoint every x epochs
 
 DUTS_PATH = '/Users/Papa/train/DUTS/'
 PASCAL_PATH = '/Users/Papa/train/pascal/'
 ECSSD_PATH = '/Users/Papa/train/ECSSD/'
 HRSOD_PATH = '/Users/Papa/train/HRSOD/'
-# CARS_PATH = '/Users/Papa/cars/train/'
 
-# GT_ROOT = '/Users/Papa/DAVIS_2_obj/trainval/Annotations/480p/'
-# IM_ROOT = '/Users/Papa/DAVIS_2_obj/trainval/JPEGImages/480p/'
-# VAL_PATH = '/Users/Papa/cars/val/'
-SAVE_IMG_DIR = "/Users/Papa/Results/custom_b1/"
-SAVE_MODEL_DIR = "/Users/Papa/Results/custom_b1/"
-MODEL_NAME = 'custom1_b1_64_192_384_512_2_3_4_2_phase1'  # save name for checkpoints
+SAVE_IMG_DIR = "/Users/Papa/Results/custom_b1/"  # Location for saving example predictions
+SAVE_MODEL_DIR = "/Users/Papa/Results/custom_b1/"  # Location for saving checkpoints
+MODEL_NAME = 'custom1_b1_64_192_384_512_2_3_4_2_phase1'  # Name for checkpoints: the epoch number is appended to this
 
-# MODEL_PATH = '/Users/Papa/Results/test_model9.pth.tar'
+# Provide a path to checkpoint if restarting training OTHERWISE set as None
 MODEL_PATH = '/Users/Papa/Results/custom_b1/custom1_b1_64_192_384_512_2_3_4_2_phase1_13.pth.tar'  # location of a checkpoint to load
-START_FROM_EPOCH = 14 # None or Int: Set this when loading saved weights and restarting a schedule
+START_FROM_EPOCH = 14  # None or Int: Set to the epoch you are starting from
+
 
 def main():
-    logger = Logger("b3_b2_test")
+    logger = Logger("")  # Starts a TensorBoard logger - Functionality limited in PyTorch
 
-    model = EamStm(
+    model = EamStcn(
         key_encoder_model='custom',  # EfficientNetV2 letter, 'custom' or resnet
         value_encoder_model='b1',  # EfficientNetV2 letter or resnet
         key_pretrained=True,
@@ -68,25 +69,28 @@ def main():
         # load_opt_checkpoint(MODEL_PATH, optimiser)
 
     # Freeze BN layers
-    # for _, child in (model.named_children()):
-    #     if isinstance(child, nn.BatchNorm2d):
-    #         for param in child.parameters():
-    #             param.requires_grad = False
+
+    for _, child in (model.named_children()):
+        if isinstance(child, nn.BatchNorm2d):
+            for param in child.parameters():
+                param.requires_grad = False
 
     model = model.to(DEVICE)
+
     loss_fn = nn.CrossEntropyLoss()
 
-    # loss_fn = nn.BCEWithLogitsLoss()
-
-
     optimiser = optim.NAdam(model.parameters(), lr=LEARNING_RATE)
+
     if MODEL_PATH is not None:
         optimiser.load_state_dict(torch.load(MODEL_PATH, map_location='mps')['optimiser'])
-    # scheduler = optim.lr_scheduler.StepLR(optimiser, step_size=40, gamma=0.1, verbose=False)
-    #
+
+    scheduler = optim.lr_scheduler.StepLR(optimiser, step_size=25, gamma=0.1, verbose=False)
+
     # if MODEL_PATH is not None:
     #     scheduler.load_state_dict(torch.load(MODEL_PATH, map_location='cuda')['scheduler'])
 
+    # scaler required when training with mixed precision to scale the gradients since they may
+    # be too small to be represented by fp16
     scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
 
     eam_trainer = Trainer()  # Wrapper class
@@ -95,13 +99,12 @@ def main():
     # transforms
     datasets = {}
 
-    # img_sizes = [('xsmall', 60, 112, .2), ('small', 90, 168, .4), ('mid', 120, 224, .6),
-    #              ('large', 180, 336, .8), ('xlarge', 240, 448, 1)]
-
+    # We use square images which yield better results in general
     img_sizes = [('small', 192, 192, .4), ('mid', 224, 224, .6),
                  ('large', 336, 336, .8), ('xlarge', 384, 384, 1)]
 
     # lose completed datasets if they have been completed when loading a saved epoch's set of weights
+    # The process sometimes can be a bit buggy with the epoch suddenly jumping a few when restarting
     if START_FROM_EPOCH is not None:
         remaining = START_FROM_EPOCH // NUM_EPOCHS
         img_sizes = img_sizes[remaining:]
@@ -118,26 +121,10 @@ def main():
         datasets[f'duts_{name}'] = DutsDataSet(DUTS_PATH, height=height, width=width, pf=prog_tr_factor)
         datasets[f'hrsod_{name}'] = HrsodDataSet(HRSOD_PATH, height=height, width=width, pf=prog_tr_factor)
 
-    # pascal_loader = DataLoader(pascal_data, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, pin_memory=PIN_MEMORY,
-    #                            shuffle=True)
-    # ecssd_loader = DataLoader(ecssd_data, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, pin_memory=PIN_MEMORY,
-    #                           shuffle=True)
-    # duts_loader = DataLoader(ecssd_data, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, pin_memory=PIN_MEMORY,
-    #                          shuffle=True)
-    # hrdos_loader = DataLoader(ecssd_data, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, pin_memory=PIN_MEMORY,
-    #                          shuffle=True)
-
-    # cars_data = CarsDataSet(CARS_PATH, IMAGE_HEIGHT=IMAGE_HEIGHT, IMAGE_WIDTH=IMAGE_WIDTH)
-    # cars_loader = DataLoader(cars_data, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, pin_memory=PIN_MEMORY,
-    #                          shuffle=True)
-    # max_distance = 10
-    # davis_data = VOSTrainDataset(IM_ROOT, GT_ROOT, max_distance, height=80, width=120)
-    # davis_loader = DataLoader(davis_data, batch_size=16, num_workers=2, pin_memory=False, shuffle=True)
-    # # val_loader = DataLoader(cars_val_data, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, pin_memory=PIN_MEMORY,
-    # #                         shuffle=True)
-
     final_sets = []
 
+    # We repeat the smaller sets to make them a bit more equal with the larger datasets
+    # Maybe advantageous to just use the bigger sets
     for size in img_sizes:
         set_ = []
         pascal = [datasets['pascal_' + size[0]] for _ in range(4)]
@@ -154,12 +141,12 @@ def main():
         data_loader = DataLoader(data, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, pin_memory=PIN_MEMORY,
                                  shuffle=True)
 
-        eam_trainer.train(data_loader, model, optimiser, loss_fn, scaler, NUM_EPOCHS, so_far=so_far,
+        eam_trainer.train(data_loader, model, optimiser, loss_fn, scaler, NUM_EPOCHS, step_lr=scheduler, so_far=so_far,
                           epochs_left=epochs_left, val_loader=None, logger=logger, device=DEVICE,
                           log_img=LOG_IMG_RATE, save_img=SAVE_IMG_RATE, model_save=SAVE_MODEL_RATE,
                           name=MODEL_NAME, SAVE_IMG_DIR=SAVE_IMG_DIR,
                           SAVE_MODEL_DIR=SAVE_MODEL_DIR)  # scaler val_loader=val_loader
-        # either start epoch 10 , 25 or 0
+
         # Calculate epoch number to carry over
         if epochs_left is not None:
             so_far += (NUM_EPOCHS - epochs_left)

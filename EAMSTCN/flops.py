@@ -7,7 +7,7 @@ from fvcore.nn import FlopCountAnalysis
 import PIL.Image as Image
 from torch.utils.data import DataLoader
 import time
-from EAMSTCN.EamStcn import EamStm
+from EAMSTCN.EamStcn import EamStcn
 import torch
 from tqdm import tqdm  # progress bar
 from datasets.DavisEvalDataset import DAVISEvalDataset
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     # WEIGHTS_PATH = '/Users/Papa/Trained Models/b1_b1/b1_b1_stcn_ck64_phase2_yt19_amp_final.pth.tar'  # 79.16
     # WEIGHTS_PATH = '/Users/Papa/Trained Models/b1_b1_ex512/b1_b1_stcn_dec_ck64_ex512_phase2_yt19_no_amp_64.pth.tar' # 80.48
 
-    # model = EamStm(
+    # model = EamStcn(
     #     key_encoder_model='b1',  # EfficientNetV2 letter, 'resnet' or 'custom'
     #     value_encoder_model='b1',  # EfficientNetV2 letter, 'resnet'
     #     key_pretrained=False,

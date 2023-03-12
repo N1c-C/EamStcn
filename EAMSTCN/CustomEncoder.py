@@ -1,6 +1,6 @@
 """
 Modified ResNet structure for a custom encoder using MBConv Blocks Instead of Residual Blocks
-Used in the ablation experiment to explore a wider final stage for better segmentation.
+Used in an ablation experiment to explore a wider final stage for better segmentation. The results were poor
 """
 
 from collections import OrderedDict

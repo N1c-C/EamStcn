@@ -78,7 +78,7 @@ class DAVISEvalDataset(Dataset):
         gts = masks
         masks, info['labels'] = one_hot_mask(torch.from_numpy(masks), start_label=1)
         masks = masks.unsqueeze(2)
-
+        info['gt_obj'] = {0: np.array([1])}
         data = {
             'seq': images,
             'gt_seq': masks,

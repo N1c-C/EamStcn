@@ -1,3 +1,9 @@
+"""All the building blocks for the EfficientNet, ResNet and EamStcn networks.
+https://github.com/abhuse/pytorch-efficientnet,  https://github.com/hkchengrex/STCN
+https://github.com/Jongchan/attention-module/blob/master/MODELS/cbam.py
+https://github.com/seoungwugoh/STM
+"""
+
 from collections import abc as container_abc
 from math import ceil, floor
 import torch
@@ -520,23 +526,23 @@ class FeatureFusionBlock(nn.Module):
 
     def __init__(self, in_channel, out_channel, ):
         super().__init__()
-        #
-        self.block1 = FusedMBConvBlockV2(in_channel, out_channel, 3, 1, 1, 'silu',
-                                    drop_connect_rate=0.2,
-                                    bn_epsilon=1e-3,
-                                    # se_size=256,
-                                    bn_momentum=0.01)
-        # self.attention = CBAM(out_channel)
-        self.block2 = MBConvBlockV2(out_channel, out_channel, 3, 1, 1, 'silu',
-                                    drop_connect_rate=0.2,
-                                    bn_epsilon=1e-3,
-                                    # se_size=256,
-                                    bn_momentum=0.01
-                                    )
-        #
-        # self.block1 = ResBlock(in_channel, out_channel)
+        # #
+        # self.block1 = FusedMBConvBlockV2(in_channel, out_channel, 3, 1, 1, 'silu',
+        #                             drop_connect_rate=0.2,
+        #                             bn_epsilon=1e-3,
+        #                             # se_size=256,
+        #                             bn_momentum=0.01)
         # # self.attention = CBAM(out_channel)
-        # self.block2 = ResBlock(out_channel, out_channel)
+        # self.block2 = MBConvBlockV2(out_channel, out_channel, 3, 1, 1, 'silu',
+        #                             drop_connect_rate=0.2,
+        #                             bn_epsilon=1e-3,
+        #                             # se_size=256,
+        #                             bn_momentum=0.01
+        #                             )
+        #
+        self.block1 = ResBlock(in_channel, out_channel)
+        # self.attention = CBAM(out_channel)
+        self.block2 = ResBlock(out_channel, out_channel)
 
     def forward(self, value_key, key_f16_features):
         x = torch.cat([value_key, key_f16_features], 1)

@@ -1,4 +1,7 @@
+""" Convoluted method using ONNX to convert to TensorFlow. ONNX cannot convert the entire network
+ so convert in pieces """
 
+import sys
 from EAMSTCN.EamStcn import EamStcn
 from utils import *
 import onnx
