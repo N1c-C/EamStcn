@@ -1,15 +1,8 @@
-from multiprocessing import freeze_support
+""" Convoluted method using ONNX to convert to TensorFlow. ONNX cannot convert the entire network
+ so convert in pieces """
 
-import PIL.Image as Image
-from tensorflow import Variable
-from torch.utils.data import DataLoader
-import time
-from EAMSTCN.EamStcn import EamStm
-import torch
-from tqdm import tqdm  # progress bar
-from datasets.DavisEvalDataset import DAVISEvalDataset
-from evaluate.evaluator import EvalEamStm
-from metrics.measurements import *
+import sys
+from EAMSTCN.EamStcn import EamStcn
 from utils import *
 import onnx
 from onnx_tf.backend import prepare
@@ -20,7 +13,7 @@ DEVICE = 'mps'
 # Choose one or the other methods to load model
 WEIGHTS_PATH = "/Users/Papa/Downloads/b3_b2_fpn2_ck64_phase2_youtube19_no_amp_start_from_p1_88.pth.tar"
 
-model = EamStm(
+model = EamStcn(
     key_encoder_model='b3',
     value_encoder_model='b2',
     key_pretrained=True,

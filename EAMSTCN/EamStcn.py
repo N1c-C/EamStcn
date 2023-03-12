@@ -119,40 +119,40 @@ class EamStcn(nn.Module):
         # First update the final number of out channels, since the FPN decoder receives memory value (dim 512)
         # merged with the query key 1/16 features
 
-        # if key_encoder_model == 'resnet':
-        #     # Swap the decoder declaration depending on which FPN is used
-        #     if self.upres_decoder:
-        #         self.decoder = StcnDecoder([64, 256, 512, 1024])
-        #     else:
-        #         self.decoder = FpnDecoder([64, 256, 512, 1024 + self.value_key_dim], 256, fpn_stage)
-        #
-        # elif key_encoder_model == 'custom':
-        #     if self.upres_decoder:
-        #         self.decoder = Decoder1([64, 192, 384, 1024]) if decoder == 'decoder1' else \
-        #             Decoder2([64, 192, 384, 1024])
-        #     else:
-        #         self.decoder = FpnDecoder([*stage_channels[0:-1], stage_channels[-1] + self.value_key_dim], 256,
-        #                                   fpn_stage)
-        #     # self.key_f16_compress = nn.Conv2d(self.key_out_channels, self.key_comp_dim, kernel_size=3, padding='same')
-        #
-        # else:
-        #     if feature_expansion:
-        #         self.key_encoder.cfg['out_channel'][-1] = self.value_key_dim + 512 if self.upres_decoder else \
-        #             self.value_key_dim + expansion_ch
-        #     else:
-        #         self.key_encoder.cfg['out_channel'][-1] = self.value_key_dim + (
-        #             512 if self.upres_decoder else self.key_encoder.cfg['out_channel'][-1])
-        #
-        #     encoder_out_channels = zip(self.key_encoder.cfg['out_channel'], self.key_encoder.cfg['is_feature_stage'])
-        #     # Set the FPN out channels to the same as the key decoder's dimensions
-        #     if self.upres_decoder:
-        #         self.decoder = \
-        #             Decoder1([ch for ch, feature in encoder_out_channels if feature]) if decoder == 'decoder1' else \
-        #             Decoder2([ch for ch, feature in encoder_out_channels if feature])
-        #     else:
-        #         self.decoder = FpnDecoder([ch for ch, feature in encoder_out_channels if feature],
-        #                                   self.key_out_channels,
-        #                                   fpn_stage)
+        if key_encoder_model == 'resnet':
+            # Swap the decoder declaration depending on which FPN is used
+            if self.upres_decoder:
+                self.decoder = StcnDecoder([64, 256, 512, 1024])
+            else:
+                self.decoder = FpnDecoder([64, 256, 512, 1024 + self.value_key_dim], 256, fpn_stage)
+
+        elif key_encoder_model == 'custom':
+            if self.upres_decoder:
+                self.decoder = Decoder1([64, 192, 384, 1024]) if decoder == 'decoder1' else \
+                    Decoder2([64, 192, 384, 1024])
+            else:
+                self.decoder = FpnDecoder([*stage_channels[0:-1], stage_channels[-1] + self.value_key_dim], 256,
+                                          fpn_stage)
+            # self.key_f16_compress = nn.Conv2d(self.key_out_channels, self.key_comp_dim, kernel_size=3, padding='same')
+
+        else:
+            if feature_expansion:
+                self.key_encoder.cfg['out_channel'][-1] = self.value_key_dim + 512 if self.upres_decoder else \
+                    self.value_key_dim + expansion_ch
+            else:
+                self.key_encoder.cfg['out_channel'][-1] = self.value_key_dim + (
+                    512 if self.upres_decoder else self.key_encoder.cfg['out_channel'][-1])
+
+            encoder_out_channels = zip(self.key_encoder.cfg['out_channel'], self.key_encoder.cfg['is_feature_stage'])
+            # Set the FPN out channels to the same as the key decoder's dimensions
+            if self.upres_decoder:
+                self.decoder = \
+                    Decoder1([ch for ch, feature in encoder_out_channels if feature]) if decoder == 'decoder1' else \
+                    Decoder2([ch for ch, feature in encoder_out_channels if feature])
+            else:
+                self.decoder = FpnDecoder([ch for ch, feature in encoder_out_channels if feature],
+                                          self.key_out_channels,
+                                          fpn_stage)
 
     def get_features(self, x):
         """ Method o obtain the stage features for observation

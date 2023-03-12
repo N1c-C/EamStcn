@@ -1,5 +1,7 @@
 """
-STCN: GitHub code for the encoders. Modified to fit EAMSTCN producing an OrderedDict() of the stage outputs
+https://github.com/hkchengrex/STCN, https://github.com/seoungwugoh/STM
+STCN: GitHub code for the encoders. Modified to fit EAMSTCN producing an OrderedDict() of the stage outputs.
+Used to provide a control model to compare with the ones based on EfficientNets
 """
 
 import torch.nn.functional as F

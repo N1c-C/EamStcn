@@ -1,20 +1,16 @@
 """This is a modified factory script from https://github.com/abhuse/pytorch-efficientnet
-It enables a PyTorch EfficientNetV2 model to be instantiated either for classification or segmentation.py
-When creating a segmentation model, the final convolution stage and the original head layers are removed.
-The output from the remaining convolution stages are fed into  a feature pyramid network FPN followed by a
-final convolution layer for single channel mask predictions.
-
-Use BCEWithLogitsLoss() loss function and seg=True for a segmentation model
-
-Both options can be preloaded with the Imagenet weights for effective transfer learning"""
+NOTE: We have separate definitions for the encoders, since if you want them to both be the same, an error occurs if
+using the same script for both encoders.
+Enables any version of efficientnet to be used as the value encoder. The last stages are ignored so the that the final
+stage output is 1/16 of the input dimensions.
+On the forward pass the output is an OrderedDict with 4 keys ['stage_1'] to ['stage_4'] with their values being the
+feature maps from the corresponding stage of the network"""
 
 from collections import OrderedDict
 from math import ceil
-
 import torch
 import torch.nn as nn
 from torch.utils import model_zoo
-
 from EAMSTCN.modules import MBConvBlockV2, FusedMBConvBlockV2, get_activation, round_filters
 
 
@@ -302,7 +298,7 @@ class ValEncoder(nn.Module):
         return [drop_connect_rate * i / total for i in range(total)]
 
     def get_features(self, x):
-        """Given input x:  returns a list of features from the end of each stage
+        """Given input x: returns a list of features from the end of each stage
         that has been set as True in the _model dictionary"""
         x = self.stem_act(self.stem_bn(self.stem_conv(x)))
 
@@ -315,17 +311,6 @@ class ValEncoder(nn.Module):
                 feat_idx += 1
 
         return features
-
-    # def forward(self, x):
-    #     stage_idx = 1
-    #     x = self.stem_act(self.stem_bn(self.stem_conv(x)))
-    #     for idx, block in enumerate(self.blocks):
-    #         x = block(x)
-    #         if idx in self.end_of_stage_idxs:
-    #             self.stage_outputs_dict['block_' + str(stage_idx)] = x
-    #             stage_idx += 1
-    #     x = self.fpn(self.stage_outputs_dict)
-    #     return self.head_out(self.final_decon(x['block_1']))
 
     def forward(self, x):
         """ Returns an ordered dictionary of the 4 CNN stage outputs for input to an FPN module """

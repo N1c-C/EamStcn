@@ -75,7 +75,7 @@ class EvalEamStm:
                 # self.save_every = save_frame2(match_shape(prev_mask, pred_mask[1:]))
 
                 # Use Difference triggers
-                save_frame = self.mem_trigger2(im_diff, msk_diff, prev_im_diff, prev_msk_diff)
+                save_frame = self.mem_trigger1(im_diff, msk_diff, prev_im_diff, prev_msk_diff)
                 # self.save_every, save_frame = self.save_frame(im_diff, msk_diff, prev_im_diff, prev_msk_diff)
                 # self.save_every = 25
                 # print(self.save_every, save_frame)
@@ -94,6 +94,7 @@ class EvalEamStm:
                 #     self.model.memory.add_to_memory(mem_key, mem_v)
 
                 # if self.save_pr_fr or is_mem_fr or save_frame:
+                print(save_frame, fr)
                 if save_cntdown == 0:
                     if self.save_pr_fr or is_mem_fr or save_frame:  # or is_mem_fr
                         # match_shape(prev_mask, pred_mask[1:])
@@ -106,24 +107,21 @@ class EvalEamStm:
                         self.model.memory.add_to_memory(mem_key, mem_v)
                         save_cntdown = 4
 
-            # prev_im_diff = im_diff
-            # prev_msk_diff = msk_diff
         print("frames saved:", self.model.memory.mem_size())
         return last_fr_idx
 
-    def mem_trigger1(self, im_diff, msk_diff, prev_im_diff, prev_msk_diff):
+    def mem_trigger2(self, im_diff, msk_diff, prev_im_diff, prev_msk_diff):
         """
         Compare the absolute amount of image difference between the current and previous frames
-        :param im_diff:
-        :param msk_diff:
-        :param prev_im_diff:
-        :param prev_msk_diff:
-        :return:
+        :param im_diff: float: a single value representing the pixel difference between two frames
+        :param msk_diff: float: a single value representing the pixel difference between two masks
+        :param prev_im_diff: float: a single value representing the pixel difference between the previous two frames
+        :param prev_msk_diff: float: a single value representing the pixel difference between the previous two frames
+        :return: Bool: Save the frame if True
         """
         self.im_aoc.append(abs(abs(im_diff) - abs(prev_im_diff)))
         self.msk_aoc.append(abs(abs(msk_diff) - abs(prev_msk_diff)))
-        # Find the amount of change (roc) between frames
-        msk_roc = im_roc = 0
+        # Find the amount of change (roc) between frames        msk_roc = im_roc = 0
         if len(self.im_aoc) > 1:
             im_roc = abs(self.im_aoc[-1] - self.im_aoc[-2])
             msk_roc = abs(self.msk_aoc[-1] - self.msk_aoc[-2])
@@ -133,14 +131,14 @@ class EvalEamStm:
                 # print('yes you got here')
                 return True
 
-    def mem_trigger2(self, im_diff, msk_diff, prev_im_diff, prev_msk_diff):
+    def mem_trigger1(self, im_diff, msk_diff, prev_im_diff, prev_msk_diff):
         """
         Compare the absolute amount of image difference between the current and previous frames
-        :param im_diff:
-        :param msk_diff:
-        :param prev_im_diff:
-        :param prev_msk_diff:
-        :return:
+        :param im_diff: float: a single value representing the pixel difference between two frames
+        :param msk_diff: float: a single value representing the pixel difference between two masks
+        :param prev_im_diff: float: a single value representing the pixel difference between the previous two frames
+        :param prev_msk_diff: float: a single value representing the pixel difference between the previous two frames
+        :return: Bool: Save the frame if True
         """
         self.im_aoc.append(abs(abs(im_diff) - abs(prev_im_diff)))
         self.msk_aoc.append(abs(abs(msk_diff) - abs(prev_msk_diff)))
@@ -149,24 +147,8 @@ class EvalEamStm:
         if len(self.im_aoc) > 1:
             im_roc = abs(self.im_aoc[-1] - self.im_aoc[-2])
             msk_roc = abs(self.msk_aoc[-1] - self.msk_aoc[-2])
-            # print(msk_roc.item(), im_roc.item())
 
-        # if msk_roc > .2:
-        #     return True
-        #
-        # # important one
-        # if msk_roc < 0.1 and im_roc > 0.3:
-        #     return True
-        #
-        # if self.num_objs >= 3 and msk_roc > .0:
-        #     return True
-        #
-        # if msk_roc > 0.15 and im_roc > .15:
-        #     return True
-        #
-        # if msk_roc > 0.15 and im_roc > .4:
-        #     return True
-
+        # Simple set of conditions to force a frame to be saved
         if msk_roc > .3:
             return True
 
@@ -184,111 +166,9 @@ class EvalEamStm:
             return True
 
     def average_roc(self):
+        """Finds the average rate of change
+        currently not used"""
         return np.sum(self.avg_im_roc) / len(self.avg_im_roc)
 
 
-def save_frame2(diff):
-    """"""
-    # Find the rate of change (roc) between frames using Hu Moments
-    msk_roc = im_roc = 0
-    # if len(self.im_aoc) > 1:
-    #     im_roc = abs(self.im_aoc[-1] - self.im_aoc[-2])
-    #     msk_roc = abs(self.msk_aoc[-1] - self.msk_aoc[-2])
-    #     if msk_roc > 125 and im_roc > 125:
-    #         return True
-    if diff > 1e+308:
-        diff = 0
 
-    if diff < 1:
-        return 7
-
-    if diff > 14:
-        return 1
-
-    if diff > 11:
-        return 2
-
-    if diff > 8:
-        return 3
-
-    if diff > 5:
-        return 4
-    else:
-        return 5
-# def mem_trigger2(self, im_diff, msk_diff, prev_im_diff, prev_msk_diff):
-#        """
-#        Compare the absolute amount of image difference between the current and previous frames
-#        :param im_diff:
-#        :param msk_diff:
-#        :param prev_im_diff:
-#        :param prev_msk_diff:
-#        :return:
-#        """
-#        self.im_aoc.append(abs(abs(im_diff) - abs(prev_im_diff)))
-#        self.msk_aoc.append(abs(abs(msk_diff) - abs(prev_msk_diff)))
-#        # Find the amount of change (roc) between frames
-#        msk_roc = im_roc = 0
-#        if len(self.im_aoc) > 1:
-#            im_roc = abs(self.im_aoc[-1] - self.im_aoc[-2])
-#            msk_roc = abs(self.msk_aoc[-1] - self.msk_aoc[-2])
-#            print(msk_roc.item(), im_roc.item())
-#
-#        if self.num_objs > 3:
-#            True
-#
-#        if msk_roc < 0.1 and im_roc < 0.1 and self.num_objs == 1:
-#            False
-#        #
-#        if msk_roc < 0.1 and im_roc < 0.1 and self.num_objs > 1:
-#            False
-#
-#        if im_roc > .15:
-#            self.sr = 5
-#        else:
-#            self.sr = 5
-#
-#        if msk_roc > .3:
-#            # return 3, True
-#            return self.sr, True
-#
-#        if self.num_objs >= 3 and msk_roc > .1:
-#            # return 6, True
-#            return self.sr, True
-#
-#        # if msk_roc > 0.3 and im_roc > 0.3:
-#        #     return 3, True
-#
-#        if msk_roc > 0.25 and im_roc > .25:
-#            # return 5, True
-#            return self.sr, True
-#
-#        # if msk_roc < 0.1 and im_roc > 0.5:
-#        #     return 5, True
-#
-#        # if msk_roc < 0.1 and im_roc > 0.35:
-#        #     return 5, True
-#
-#        if msk_roc > 0.15 and im_roc > .6:
-#            # return 5, True
-#            return self.sr, True
-#        # important one
-#        if msk_roc < 0.1 and im_roc > 0.5:
-#            # return 6, True
-#            return self.sr, True
-#        # if msk_roc > 0.2 and im_roc > .2:
-#        #     return 6, False
-#
-#
-#
-#        if msk_roc > .30:
-#            return 3, True
-#
-#
-#        if msk_roc > 0.1 and im_roc > 0.1:
-#            return 7, False
-#        else:
-#        #     # if msk_roc > .30:
-#        #     #     return 3, True
-#        #     # if msk_roc < 0.1 and im_roc > 0.35:
-#        #     #     return 5, True
-#            return self.sr, False
