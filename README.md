@@ -32,7 +32,7 @@ The best model achieved an 84% J&F score on the DAVIS-17 dataset.
 
 # Main Conclusions
 
-1) An EfficientNet backbone for the query and value encoders improved the overall J&F score by 2% compared with ResNets, with little or no loss in inference speed. However, EfficientNets do not generalise to unseen data as well as ResNets, nor are they so simple to train or implement.
+1) An EfficientNet backbone for the query and value encoders improved the overall J&F score by 2% compared with ResNets, with a small loss in inference speed. Inference speeds were significantly faster than the ResNet control when smaller EfficientNet models were used, with a loss in J&F accuracy of 1.5%  However, EfficientNets do not generalise to unseen data as well as ResNets, nor are they so simple to train or implement.
 
 2) Although incredibly simple, the dynamic memory save algorithm generally improves a network's accuracy between 0.4 and 1%. Typically, adaptive saving reduces the number of frames stored across a dataset (Good for longer videos), in turn increasing the inference speed by a few per cent. On datasets where the adaptive save becomes a penalty compared to a fixed saving rate - the function still achieves the optimal balance of the highest accuracy/fastest inference speed.
   
