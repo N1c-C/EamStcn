@@ -58,4 +58,3 @@ Cheng, H. K., Tai, Y.-W. & Tang, C.-K. 2021. Rethinking Space-Time Networks with
 
 Wang, H., Jiang, X., Ren, H., Hu, Y. & Bai, S. SwiftNet: Real-time Video Object Segmentation.  2021 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 20-25 June 2021 2021. 1296-1305, 10.1109/CVPR46437.2021.00135.
 
-![image](https://user-images.githubusercontent.com/103114303/224546499-75a84d16-c6e4-4bb9-8afd-6db1520b4e6b.png)
