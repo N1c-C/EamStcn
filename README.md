@@ -57,7 +57,7 @@ For this project, B1 EfficientNets were used for both encoders due to time const
     <br/>Example of poor segmentation on a rotating similar object sequence 
 </p>
 
-Check out the [**wiki**](https://github.com/N1c-C/EamStcn-Video-Object-Segmentation/wiki) for an explanation of the save function and full results.
+Check out the [**Wiki**](https://github.com/N1c-C/EamStcn-Video-Object-Segmentation/wiki) for an explanation of the save function and full results.
 
 <br/>
 
