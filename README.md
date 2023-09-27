@@ -1,12 +1,17 @@
-# EamStcn: Efficient Adaptive Memory Space-Time Correspondence Network 
+# Object Segmentation in Videos
+## EamStcn: Efficient Adaptive Memory Space-Time Correspondence Network 
+
 
 This repository is my master’s project exploring accurate real-time video object segmentation (VOS). 
 
 The research concentrates on two areas:
  1) The underuse of EfficentNets in video object segmentation (VOS) applications. (The default in the sector is to use a Residual Network (ResNet))
- 2) The use of a dynamic save algorithm to improve the performance of the popular memory model approach for VOS applications.
+ 2) A dynamic save algorithm based on the rate-of-change between frames to improve the performance of the popular memory model approach for VOS applications.
 
-EamStcn is a Space-Time Correspondence Network (Cheng et al., 2021) that saves predictions(values) through time to form a matching set or memory. For each frame in a video sequence, a query key is generated and used to reference the memory. The memory consists of previously saved query keys and their corresponding value (segmentation/image mask).  L2 Similarity (opposed to the typically used cosine similarity function) returns the top 20 matching features which are merged and decoded to produce the segmentation mask.
+Check out the [**wiki**](https://github.com/N1c-C/EamStcn-Video-Object-Segmentation/wiki) for an explanation of the model and extra results.
+
+
+EamStcn is a Space-Time Correspondence Network (Cheng et al., 2021) that saves predictions(values/segmentations) through time to form a matching set (or memory) to compare the current frame with. For each frame in a video sequence, a query key is generated and used to reference the memory. The memory consists of previously saved query keys and their corresponding value (segmentation/image mask).  L2 Similarity (opposed to the typically used cosine similarity function) returns the top 20 matching features which are merged and decoded to produce the segmentation mask.
 
 All previous memory model research uses ResNets for the query and value encoders. EamStcn uses EfficientNets for the two encoders. The code provided allows for any combination of EfficientNet to be chosen.
 
@@ -14,7 +19,7 @@ Memory models typically save every fifth frame to memory. This process is ineffi
 <br/><br/><br/>
 
 <p align="center" width="100%">
-    <img width="70%" src="https://github.com/N1c-C/EamStcn/assets/103114303/141419f8-f480-456e-b44b-426db0c3b643)" title="Van Gogh, Self-portrait.">
+    <img width="70%" src="https://github.com/N1c-C/EamStcn/assets/103114303/141419f8-f480-456e-b44b-426db0c3b643">
   <br/>EamStcn Overview
 </p>
 
