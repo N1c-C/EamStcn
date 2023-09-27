@@ -5,27 +5,36 @@
 This repository is my master’s project exploring accurate real-time video object segmentation (VOS). 
 
 The research concentrates on two areas:
- 1) The underuse of EfficentNets in video object segmentation (VOS) applications. (The default in the sector is to use a Residual Network (ResNet))
- 2) A dynamic save algorithm based on the rate-of-change between frames to improve the performance of the popular memory model approach for VOS applications.
+ 1) The underuse of EfficentNets in video object segmentation (VOS) applications - Residual Networks (ResNets) are habitually used in all VOS research
+ 2) A dynamic save algorithm based on the rate of pixel change between frames to improve the performance of the popular memory model approach for VOS applications.
 
-Check out the [**wiki**](https://github.com/N1c-C/EamStcn-Video-Object-Segmentation/wiki) for an explanation of the model and extra results.
+<p></p><br/>
 
-
-EamStcn is a Space-Time Correspondence Network (Cheng et al., 2021) that saves predictions(values/segmentations) through time to form a matching set (or memory) to compare the current frame with. For each frame in a video sequence, a query key is generated and used to reference the memory. The memory consists of previously saved query keys and their corresponding value (segmentation/image mask).  L2 Similarity (opposed to the typically used cosine similarity function) returns the top 20 matching features which are merged and decoded to produce the segmentation mask.
-
-All previous memory model research uses ResNets for the query and value encoders. EamStcn uses EfficientNets for the two encoders. The code provided allows for any combination of EfficientNet to be chosen.
-
-Memory models typically save every fifth frame to memory. This process is inefficient as it often stores redundant information (when there is little change in an object across a video) or misses storing vitally important information (when there is a sudden rapid change in appearance or position). EamStcn uses a novel, motion-aware save function[1] that measures the rate of change between frames to determine if the current one should be kept in the memory.
-<br/><br/><br/>
-
+# Baisc Operation
+* EamStcn is a Space-Time Correspondence Network (Cheng et al., 2021) that saves predictions(values/segmentations) through time to form a matching set (or memory) to compare with the current frame<br/>
+* For each frame in a video sequence, a query key is generated and used to reference the memory<br/> 
+* The memory consists of previously saved query keys and their corresponding value (segmentation/image mask)<br/>
+* Similarity or affinity is used to return the top 20 matching features which are merged and decoded to produce the segmentation mask. For this model, L2 similarity is used as per the original paper but other functions (e.g. cosine) produce the same results<br/>
+* Memory models typically save every fifth frame to memory. EamStcn uses a novel, motion-aware save function[1] that measures the rate of pixel change between frames and saves the current segmentation when a threshold is met<br/>
+<br/>
 <p align="center" width="100%">
     <img width="70%" src="https://github.com/N1c-C/EamStcn/assets/103114303/141419f8-f480-456e-b44b-426db0c3b643">
-  <br/>EamStcn Overview
+  <br/><strong>EamStcn Overview: EffiecientNetV2 CNN networks are used for the Query and Value Encoders. An accuracy-speed trade-off to suit an application can be achieved by careful selection of the two networks</strong>
 </p>
+<br/>
 
-<br/><br/><br/>
-# Segmentation Results
-The best model achieved an 84% J&F score on the DAVIS-17 dataset.
+# Training
+
+EfficientNets pre-trained on the [**ImageNet**](https://www.image-net.org/) dataset were trained in two phases
+* Phase 1: Still images and random affine transforms are used to create faux video sequences of three frames with a single object
+* Phase 2: The _YouTube2018_ training dataset was used. Three temporally ordered frames with augmentations formed the training sample.  The gap between frames gradually increased from five to twenty-five before reducing back to five. A maximum of two objects was randomly selected from any given sequence in the dataset
+
+<br/>
+
+# J&F Accuracy and Segmentation Results
+For this project, B1 EfficientNets were used for both encoders due to time constraints and the difficulty in training larger models without sudden divergence. A feature expansion block after stage 4 of the query/key encoder was necessary to maximise accuracy. This final block widens the final set of features to 512 from 112.
+
+### J&F score on the DAVIS-17 dataset was 84%
 
 
 <p align="center" width="100%">
@@ -33,7 +42,7 @@ The best model achieved an 84% J&F score on the DAVIS-17 dataset.
 </p>
 
 
-<br/><br/><br/>
+<br/>
 
 # Main Conclusions
 
@@ -43,15 +52,14 @@ The best model achieved an 84% J&F score on the DAVIS-17 dataset.
   
 3) The EamStcn model struggles with multi-similar-object segmentation where the objects move and occupy space where the others have previously been such as the carousel video from the DAVIS test-dev data set. As such the model would benefit from the inclusion of positional encodings to help with complex scenes.
 
-
 <p align="center" width="100%">
     <img width="60%" src="https://github.com//N1c-C/EamStcn/assets/103114303/3a47a5cd-5c05-417f-b5b1-2b10b2b9621f">
     <br/>Example of poor segmentation on a rotating similar object sequence 
 </p>
 
+Check out the [**wiki**](https://github.com/N1c-C/EamStcn-Video-Object-Segmentation/wiki) for an explanation of the save function and full results.
 
-
-<br/><br/><br/>
+<br/>
 
 # References
 
