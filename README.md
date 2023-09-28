@@ -45,10 +45,10 @@ EfficientNets pre-trained on the [**ImageNet**](https://www.image-net.org/) data
 * Approx 40 hours per phase on an Nvidia A100
 <br/>
 
-# J&F Accuracy and Segmentation Results
+# 𝒥&ℱ Accuracy and Segmentation Results
 For this project, B1 EfficientNets were used for both encoders due to time constraints and the difficulty in training larger models without sudden divergence. A feature expansion block after stage 4 of the query/key encoder was necessary to maximise accuracy. This final block widens the final set of features to 512 from 112.
 
-### J&F score on the DAVIS-17 dataset was 84%
+### 𝒥&ℱ score on the DAVIS-17 dataset was 84%
 
 
 <p align="center" width="100%">
@@ -60,13 +60,13 @@ For this project, B1 EfficientNets were used for both encoders due to time const
 
 # Main Conclusions
 
-1) An EfficientNet backbone for the query and value encoders improved the overall J&F score by 2% compared with ResNets, with a small loss in inference speed. Inference speeds were significantly faster than the ResNet control when smaller EfficientNet models were used, with a loss in J&F accuracy of 1.5%  However, EfficientNets do not generalise to unseen data as well as ResNets, nor are they so simple to train or implement.
+1) An EfficientNet backbone for the query and value encoders improved the overall 𝒥&ℱ score by 2% compared with ResNets, with a small loss in inference speed. Inference speeds were significantly faster than the ResNet control when smaller EfficientNet models were used, with a loss in 𝒥&ℱ accuracy of 1.5%  However, EfficientNets do not generalise to unseen data as well as ResNets, nor are they so simple to train or implement.
 
 2) Although incredibly simple, the dynamic memory save algorithm generally improves a network's accuracy between 0.4 and 1%. Typically, adaptive saving reduces the number of frames stored across a dataset (Good for longer videos), in turn slightly increasing the inference speed. On datasets where the adaptive save becomes a penalty compared to a fixed saving rate - the function still achieves the optimal balance of the highest accuracy/fastest inference speed.
   
 3) The EamStcn model struggles with multi-similar-object segmentation where the objects move and occupy space where the others have previously been such as the carousel video from the DAVIS test-dev data set. As such the model would benefit from the inclusion of positional encodings to help with complex scenes.
    
-4) The PyTorch implementation of EfficientNetV2 has slower inference times than the TensorFlow implementation. As such it can be expected that an EamStcn model utilising the TensorFlow framework would demonstrate a significant improvement in the inference speed
+4) The PyTorch implementation of EfficientNetV2 has slower inference times than the TensorFlow implementation. As such it can be expected that an EamStcn model utilising the TensorFlow framework would demonstrate an improvement in the inference speed
 
 <p align="center" width="100%">
     <img width="60%" src="https://github.com//N1c-C/EamStcn/assets/103114303/3a47a5cd-5c05-417f-b5b1-2b10b2b9621f">
