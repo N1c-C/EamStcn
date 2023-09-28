@@ -10,6 +10,17 @@ The research concentrates on two areas:
 
 <p></p><br/>
 
+# Requirements
+
+* [**python 3.9**](https://www.python.org/)  
+* [**PyTorch 2.0**](https://pytorch.org/)
+* [**albumentations 1.2.1**](https://albumentations.ai/) 
+* [**NumPy 1.21.6**](https://numpy.org/) 
+* [**pandas 1.3.5**](https://pandas.pydata.org/) 
+* [**Pillow 7.1.2**](https://python-pillow.org/) 
+* [**scikit-image 0.18.3**](https://scikit-image.org/) 
+<br/>
+
 # Baisc Operation
 * EamStcn is a Space-Time Correspondence Network (Cheng et al., 2021) that saves predictions(values/segmentations) through time to form a matching set (or memory) to compare with the current frame<br/>
 * For each frame in a video sequence, a query key is generated and used to reference the memory<br/> 
@@ -27,8 +38,11 @@ The research concentrates on two areas:
 
 EfficientNets pre-trained on the [**ImageNet**](https://www.image-net.org/) dataset were trained in two phases
 * Phase 1: Still images and random affine transforms are used to create faux video sequences of three frames with a single object
-* Phase 2: The _YouTube2018_ training dataset was used. Three temporally ordered frames with augmentations formed the training sample.  The gap between frames gradually increased from five to twenty-five before reducing back to five. A maximum of two objects was randomly selected from any given sequence in the dataset
+* Phase 2: The _YouTube2018_ training dataset is used. Three temporally ordered frames with augmentations form a training sample. The gap between frames gradually increases from five to twenty-five before reducing back to five. A maximum of two objects is randomly selected from a given sequence
 
+### Training Duration
+* Approx 60 hours per phase on an Nvidia T4
+* Approx 40 hours per phase on an Nvidia A100
 <br/>
 
 # J&F Accuracy and Segmentation Results
